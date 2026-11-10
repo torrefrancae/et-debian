@@ -11,8 +11,9 @@ fi
 
 for dpms in /sys/class/drm/card*-eDP-*/dpms /sys/class/drm/card*-LVDS-*/dpms; do
   [[ -e "${dpms}" ]] || continue
-  echo on >"${dpms}" 2>/dev/null || true
-  log "DRM dpms on: ${dpms}"
+  printf 'on\n' | tee "${dpms}" >/dev/null 2>/dev/null || \
+    printf 'On\n' | tee "${dpms}" >/dev/null 2>/dev/null || true
+  log "DRM dpms on: ${dpms} -> $(cat "${dpms}" 2>/dev/null || echo '?')"
 done
 
 for fb in /sys/class/graphics/fb*/blank; do

@@ -15,7 +15,9 @@ off=0
 # DRM connector DPMS (best: actually powers the panel down)
 for dpms in /sys/class/drm/card*-eDP-*/dpms /sys/class/drm/card*-LVDS-*/dpms; do
   [[ -e "${dpms}" ]] || continue
-  echo off >"${dpms}" 2>/dev/null || true
+  # tee is more reliable than shell redirect on some drm sysfs nodes
+  printf 'off\n' | tee "${dpms}" >/dev/null 2>/dev/null || \
+    printf 'Off\n' | tee "${dpms}" >/dev/null 2>/dev/null || true
   log "DRM dpms off: ${dpms} -> $(cat "${dpms}" 2>/dev/null || echo '?')"
   off=1
 done

@@ -1,0 +1,11 @@
+[Unit]
+Description=et-debian: disable idle/lid auto-suspend (keep 06:00 schedule)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/et-debian-disable-idle-sleep
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

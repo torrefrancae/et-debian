@@ -13,9 +13,11 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **TigerVNC viewer** | VNC client | apt |
 | **modifier-hud** | Ctrl/Shift/Cmd OSD | `scripts/50-tools.sh` |
 | **Sleep / wake** | Suspend **06:00**, RTC wake **15:00** (local) | `scripts/60-power.sh` → `et-debian-sleep.timer` + `rtcwake` |
+| **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` (sysfs `wakeup=enabled`, ACPI `RTC*` on, prefer `mem_sleep=deep`) |
 
-Hold overnight awake: `sudo touch /etc/et-debian-nosleep` (remove the file to resume the schedule).  
-BIOS may need **Wake on RTC / Alarm** enabled for the afternoon resume.
+Hold overnight awake: `sudo touch /etc/et-debian-nosleep` (remove the file to resume the schedule).
+
+Debian enables RTC wake in-OS when the firmware exposes it. A BIOS toggle is only needed if the OEM gates the alarm in firmware.
 
 ## Intentionally not in the public bootstrap
 

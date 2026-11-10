@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Small native tools from this repo → /usr/local
+set -euo pipefail
+# shellcheck source=lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
+TOOLS_SRC="${REPO_ROOT}/tools"
+XDG_SRC="${REPO_ROOT}/conf/xdg"
+
+as_root install -d /usr/local/bin /usr/local/share/et-debian
+
+if [[ -f "${TOOLS_SRC}/modifier-hud.py" ]]; then
+  log "install modifier-hud"
+  as_root install -m 0755 "${TOOLS_SRC}/modifier-hud.py" /usr/local/bin/modifier-hud
+  as_root ln -sfn /usr/local/bin/modifier-hud /usr/local/bin/modifier-hud.py
+fi
+
+if [[ -f "${TOOLS_SRC}/mouse-circle.sh" ]]; then
+  as_root install -m 0755 "${TOOLS_SRC}/mouse-circle.sh" /usr/local/bin/mouse-circle
+fi
+
+# Autostart for logged-in graphical user (et)
+if [[ -f "${XDG_SRC}/modifier-hud.desktop" ]]; then
+  for u in et et-dev et-startup; do
+    if id "${u}" >/dev/null 2>&1; then
+      home="$(getent passwd "${u}" | cut -d: -f6)"
+      as_root install -d -o "${u}" -g "${u}" "${home}/.config/autostart"
+      as_root install -m 0644 -o "${u}" -g "${u}" \
+        "${XDG_SRC}/modifier-hud.desktop" \
+        "${home}/.config/autostart/modifier-hud.desktop"
+    fi
+  done
+fi
+
+log "tools done"

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Modifier HUD
+Comment=Centered green Ctrl/Shift/Cmd overlay (e.g. Ctrl+Shift)
+Exec=/usr/local/bin/modifier-hud
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=2
+OnlyShowIn=GNOME;GNOME-Classic;XFCE;

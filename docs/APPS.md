@@ -7,7 +7,7 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **xrdp + xorgxrdp** | Remote desktop (:3389) | apt; GDM `WaylandEnable=false` |
 | **Google Chrome** | Browser | official `.deb` |
 | **Cursor** | Editor | Cursor aptrepo / golden `.deb` |
-| **scrin.io** 1.0.7 | Time/screenshot capture (Electron) | modern `scrin.io` `.deb` (amd64); replaces legacy mono Screenshot Monitor 1.3.1; autostart for **et** |
+| **scrin.io** 1.0.7 | Time/screenshot capture (Electron) | modern `scrin.io` `.deb` (amd64); autostart for **et**; sticky on all workspaces via `et-debian-scrin-all-desktops` |
 | **AnyDesk** | Remote assistance | pinned amd64 `.deb` (override `ANYDESK_AMD64_URL`) |
 | **Remmina** (+ RDP/VNC plugins) | Client remotes | apt |
 | **TigerVNC viewer** | VNC client | apt |

@@ -27,14 +27,26 @@ if [[ -f "${TOOLS_SRC}/et-debian-workspace-keys.sh" ]]; then
   as_root /usr/local/sbin/et-debian-workspace-keys || true
 fi
 
+if [[ -f "${TOOLS_SRC}/et-debian-scrin-all-desktops.sh" ]]; then
+  log "scrin.io → all virtual desktops helper"
+  as_root install -m 0755 \
+    "${TOOLS_SRC}/et-debian-scrin-all-desktops.sh" \
+    /usr/local/bin/et-debian-scrin-all-desktops
+fi
+
 # Autostart for logged-in graphical user (et)
-if [[ -f "${XDG_SRC}/modifier-hud.desktop" ]]; then
-  if id et >/dev/null 2>&1; then
-    home="$(getent passwd et | cut -d: -f6)"
-    as_root install -d -o et -g et "${home}/.config/autostart"
+if id et >/dev/null 2>&1; then
+  home="$(getent passwd et | cut -d: -f6)"
+  as_root install -d -o et -g et "${home}/.config/autostart"
+  if [[ -f "${XDG_SRC}/modifier-hud.desktop" ]]; then
     as_root install -m 0644 -o et -g et \
       "${XDG_SRC}/modifier-hud.desktop" \
       "${home}/.config/autostart/modifier-hud.desktop"
+  fi
+  if [[ -f "${XDG_SRC}/scrin-all-desktops.desktop" ]]; then
+    as_root install -m 0644 -o et -g et \
+      "${XDG_SRC}/scrin-all-desktops.desktop" \
+      "${home}/.config/autostart/scrin-all-desktops.desktop"
   fi
 fi
 

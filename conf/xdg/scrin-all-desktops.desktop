@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=scrin.io on all desktops
+Comment=Keep scrin.io visible on every virtual desktop
+Exec=/usr/local/bin/et-debian-scrin-all-desktops
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=8
+OnlyShowIn=GNOME;GNOME-Classic;XFCE;

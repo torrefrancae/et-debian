@@ -157,6 +157,20 @@ install_screenshot_monitor() {
   fi
 }
 
+install_bookworm_deb() {
+  # $1 = bookworm package name; downloads matching arch .deb into $TMP and dpkg -i
+  local pkg="$1"
+  local url
+  url="$(curl -fsSL "https://packages.debian.org/bookworm/${ARCH}/${pkg}/download" \
+    | grep -oE 'https?://(deb|ftp)\.debian\.org/debian/pool/[^\"[:space:]]+\.deb' | head -1 || true)"
+  if [[ -z "${url}" ]]; then
+    log "bookworm ${pkg}: no download URL"
+    return 1
+  fi
+  curl -fsSL -o "${TMP}/${pkg}.deb" "${url}"
+  as_root dpkg -i "${TMP}/${pkg}.deb" || as_root apt-get install -y -f || true
+}
+
 install_anydesk() {
   if command -v anydesk >/dev/null 2>&1; then
     log "AnyDesk already installed"
@@ -165,15 +179,26 @@ install_anydesk() {
   case "${ARCH}" in
     amd64)
       log "install AnyDesk (${ANYDESK_AMD64_URL})"
+      # Trixie dropped libgtkglext1 — pull from bookworm first.
+      if ! dpkg -s libgtkglext1 >/dev/null 2>&1; then
+        install_bookworm_deb libgtkglext1 || true
+      fi
       curl -fsSL -o "${TMP}/anydesk.deb" "${ANYDESK_AMD64_URL}" || {
         log "AnyDesk download failed — install manually from https://anydesk.com/downloads"
         return 0
       }
-      as_root apt-get install -y "${TMP}/anydesk.deb" || as_root apt-get install -y -f || true
-      as_root systemctl enable --now anydesk || true
+      if ! as_root apt-get install -y "${TMP}/anydesk.deb"; then
+        as_root dpkg -i "${TMP}/anydesk.deb" || true
+        as_root apt-get install -y -f || true
+      fi
+      if command -v anydesk >/dev/null 2>&1; then
+        as_root systemctl enable --now anydesk || true
+      else
+        log "AnyDesk install incomplete — check libgtkglext1 / dpkg -l anydesk"
+      fi
       ;;
     *)
-      log "AnyDesk: no pinned .deb for ${ARCH} — skip (set ANYDESK_*_URL to override)"
+      log "AnyDesk: no pinned .deb for ${ARCH} — skip (set ANYDESK_AMD64_URL to override)"
       ;;
   esac
 }

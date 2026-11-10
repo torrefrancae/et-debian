@@ -39,25 +39,39 @@ install_chrome() {
 }
 
 install_cursor() {
-  if command -v cursor >/dev/null 2>&1 || [[ -x /usr/bin/cursor ]] || [[ -x /opt/Cursor/cursor ]]; then
+  if command -v cursor >/dev/null 2>&1 || [[ -x /usr/bin/cursor ]]; then
     log "Cursor already installed"
     return
   fi
-  log "install Cursor (.deb via official download API)"
-  # Public download endpoint; resolves to latest linux .deb for arch.
+  log "install Cursor (aptrepo or .deb)"
+  # Prefer official apt repo when keyrings are available.
+  if [[ ! -f /etc/apt/sources.list.d/cursor.list ]]; then
+    as_root bash -c '
+      set -e
+      install -d /etc/apt/keyrings
+      curl -fsSL https://downloads.cursor.com/keys/anysphere.asc \
+        | gpg --dearmor -o /etc/apt/keyrings/cursor.gpg
+      echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/cursor.gpg] https://downloads.cursor.com/aptrepo stable main" \
+        > /etc/apt/sources.list.d/cursor.list
+    ' || true
+    apt_update || true
+  fi
+  if as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y cursor; then
+    return
+  fi
+  # Fallback: golden .deb (not AppImage)
   local url
   case "${ARCH}" in
-    amd64) url="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/2.0" ;;
-    arm64) url="https://api2.cursor.sh/updates/download/golden/linux-arm64/cursor/2.0" ;;
+    amd64) url="https://api2.cursor.sh/updates/download/golden/linux-x64-deb/cursor/latest" ;;
+    arm64) url="https://api2.cursor.sh/updates/download/golden/linux-arm64-deb/cursor/latest" ;;
     *) log "no Cursor build for ${ARCH}"; return 0 ;;
   esac
   if ! curl -fsSL -L -o "${TMP}/cursor.deb" "${url}"; then
-    log "Cursor download failed — install manually from https://cursor.com/downloads"
+    log "Cursor download failed — https://cursor.com/download"
     return 0
   fi
-  as_root apt-get install -y "${TMP}/cursor.deb" || {
-    log "Cursor .deb install failed — open https://cursor.com/downloads"
-  }
+  as_root apt-get install -y "${TMP}/cursor.deb" || \
+    log "Cursor .deb install failed — https://cursor.com/download"
 }
 
 install_chrome

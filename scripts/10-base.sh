@@ -8,7 +8,7 @@ ensure_no_docker
 log "base packages"
 apt_update
 apt_install \
-  ca-certificates curl wget git rsync openssh-server openssh-client \
+  ca-certificates curl wget git gnupg rsync openssh-server openssh-client \
   avahi-daemon libnss-mdns \
   build-essential pkg-config \
   python3 python3-gi python3-gi-cairo python3-xlib gir1.2-gtk-3.0 \

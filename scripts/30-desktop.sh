@@ -7,7 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 log "desktop / rdp packages"
 apt_update
 apt_install \
-  xorg xrdp xorgxrdp \
+  xorg xrdp xorgxrdp xserver-xorg-legacy \
   dbus-x11 \
   gnome-session gnome-terminal \
   polkitd pkexec
@@ -28,28 +28,82 @@ as_root bash -c '
   fi
 '
 
-# xrdp: listen on all interfaces, port 3389 (do not pin to a Wi-Fi IP)
+# Non-console users must be allowed to start Xorg for xrdp sessions
+log "Xwrapper allowed_users=anybody (needed by xrdp)"
 as_root bash -c '
-  conf=/etc/xrdp/xrdp.ini
+  conf=/etc/X11/Xwrapper.config
   if [[ -f "$conf" ]]; then
-    sed -i "s/^port=.*/port=3389/" "$conf" || true
-    sed -i "s/^address=.*/address=0.0.0.0/" "$conf" || true
+    if grep -q "^allowed_users=" "$conf"; then
+      sed -i "s/^allowed_users=.*/allowed_users=anybody/" "$conf"
+    else
+      echo "allowed_users=anybody" >> "$conf"
+    fi
+  else
+    printf "allowed_users=anybody\nneeds_root_rights=yes\n" > "$conf"
   fi
 '
 
-# Default session: GNOME on Xorg when startwm is stock
-if as_root test -f /etc/xrdp/startwm.sh; then
-  as_root bash -c '
-    if ! grep -q "gnome-session\|startplasma\|xfce" /etc/xrdp/startwm.sh 2>/dev/null; then
-      true
-    fi
-    # Ensure we do not exec a broken .xsession-errors path; leave distro startwm.
-    chmod 755 /etc/xrdp/startwm.sh
-  '
-fi
+# xrdp.ini: ONLY Globals listens on 3389. Session modules must keep port=-1
+# (sesman-assigned). A blanket sed on ^port= breaks login with
+# "Error connecting to user session".
+log "xrdp.ini Globals listen 0.0.0.0:3389; session ports=-1"
+as_root python3 - <<'PY'
+from pathlib import Path
+path = Path("/etc/xrdp/xrdp.ini")
+if not path.exists():
+    raise SystemExit(0)
+lines = path.read_text().splitlines(True)
+out = []
+section = None
+for line in lines:
+    if line.startswith("[") and "]" in line:
+        section = line.strip()[1 : line.strip().index("]")]
+    if line.startswith("port="):
+        if section == "Globals":
+            line = "port=3389\n"
+        elif section in ("Xorg", "Xvnc", "vnc-any", "neutrinordp-any", "xrdp1"):
+            line = "port=-1\n"
+    if line.startswith("address=") and section == "Globals":
+        line = "address=0.0.0.0\n"
+    out.append(line)
+path.write_text("".join(out))
+PY
 
-as_root systemctl enable --now xrdp || true
+# GNOME on Xorg for RDP (do not reuse the console dbus/runtime)
+log "install GNOME startwm for xrdp"
+as_root tee /etc/xrdp/startwm.sh >/dev/null <<'STARTWM'
+#!/bin/sh
+# et-debian: GNOME on Xorg for xrdp
+if test -r /etc/profile; then . /etc/profile; fi
+if test -r ~/.profile; then . ~/.profile; fi
+unset DBUS_SESSION_BUS_ADDRESS
+unset XDG_RUNTIME_DIR
+export XDG_SESSION_TYPE=x11
+export GNOME_SHELL_SESSION_MODE=gnome
+export XDG_CURRENT_DESKTOP=GNOME
+export XDG_SESSION_DESKTOP=gnome
+if test -x /usr/bin/gnome-session; then
+  exec /usr/bin/gnome-session
+fi
+test -x /etc/X11/Xsession && exec /etc/X11/Xsession
+exec /bin/sh /etc/X11/Xsession
+STARTWM
+as_root chmod 755 /etc/xrdp/startwm.sh
+
+for u in et et-dev et-startup; do
+  if id "${u}" >/dev/null 2>&1; then
+    home="$(getent passwd "${u}" | cut -d: -f6)"
+    as_root bash -c "
+      install -d -o '${u}' -g '${u}' '${home}'
+      printf '%s\n' 'export XDG_SESSION_TYPE=x11' 'export GNOME_SHELL_SESSION_MODE=gnome' > '${home}/.xsessionrc'
+      chown '${u}:${u}' '${home}/.xsessionrc'
+    "
+  fi
+done
+
 as_root systemctl enable --now xrdp-sesman || true
+as_root systemctl enable --now xrdp || true
+as_root systemctl restart xrdp-sesman xrdp || true
 
 # ssl-cert membership for xrdp cert access
 for u in et et-dev et-startup etshare; do

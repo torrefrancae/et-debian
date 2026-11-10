@@ -19,6 +19,14 @@ if [[ -f "${TOOLS_SRC}/mouse-circle.sh" ]]; then
   as_root install -m 0755 "${TOOLS_SRC}/mouse-circle.sh" /usr/local/bin/mouse-circle
 fi
 
+if [[ -f "${TOOLS_SRC}/et-debian-workspace-keys.sh" ]]; then
+  log "Super+Left/Right → workspace switch (not window snap)"
+  as_root install -m 0755 \
+    "${TOOLS_SRC}/et-debian-workspace-keys.sh" \
+    /usr/local/sbin/et-debian-workspace-keys
+  as_root /usr/local/sbin/et-debian-workspace-keys || true
+fi
+
 # Autostart for logged-in graphical user (et)
 if [[ -f "${XDG_SRC}/modifier-hud.desktop" ]]; then
   if id et >/dev/null 2>&1; then

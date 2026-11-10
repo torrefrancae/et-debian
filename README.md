@@ -10,7 +10,7 @@ Goal: wipe / reinstall Debian desktop, then re-apply this repo and be productive
 |----------------------|-------------------------|
 | Host bootstrap scripts | Passwords, VPN profiles, SSH private keys |
 | Desktop/RDP/base package lists | Agent / Seatrix rule packs |
-| Optional app installers (Chrome, Cursor URLs) | Camera / AnyDesk / mail credentials |
+| Lab apps: RDP, Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina | Camera / VPN / AnyDesk unattended passwords |
 | Small tools (modifier-hud, helpers) | Machine-local `~/proj` product trees |
 
 ## Requirements
@@ -49,12 +49,15 @@ ssh et@et-debian.local 'bash -s' < scripts/bootstrap.sh
 scripts/bootstrap.sh     # entrypoint
 scripts/10-base.sh       # apt base + timezone + avahi/ssh
 scripts/20-users.sh      # etshare, et-dev, et-startup (optional)
-scripts/30-desktop.sh    # X11 preference, xrdp
-scripts/40-apps.sh       # Chrome + Cursor (download at install time)
+scripts/30-desktop.sh    # X11 preference, xrdp (:3389)
+scripts/40-apps.sh       # Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina
 scripts/50-tools.sh      # modifier-hud and small helpers
 tools/                   # source for helpers installed under /usr/local
+docs/APPS.md             # codified app inventory
 docs/SECURITY.md         # what must never be committed
 ```
+
+See [docs/APPS.md](docs/APPS.md) for the full native app list.
 
 ## Mac / operator notes
 

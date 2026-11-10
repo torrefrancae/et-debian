@@ -1,0 +1,12 @@
+[Unit]
+Description=et-debian: sleep at 06:00 local (wake armed for 15:00)
+Documentation=file:///home/et/et-debian/docs/APPS.md
+
+[Timer]
+# Asia/Manila wall clock once the timezone is set by bootstrap.
+OnCalendar=*-*-* 06:00:00
+Persistent=false
+Unit=et-debian-sleep.service
+
+[Install]
+WantedBy=timers.target

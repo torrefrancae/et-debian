@@ -21,6 +21,7 @@ bash "${HERE}/20-users.sh"
 bash "${HERE}/30-desktop.sh"
 bash "${HERE}/40-apps.sh"
 bash "${HERE}/50-tools.sh"
+bash "${HERE}/60-power.sh"
 
 log "bootstrap complete — no containers installed"
 log "next: clone private product trees into ~/proj/dev (not this public repo)"

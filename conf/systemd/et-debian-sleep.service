@@ -1,0 +1,11 @@
+[Unit]
+Description=et-debian: suspend until afternoon wake (rtcwake)
+Documentation=file:///home/et/et-debian/docs/APPS.md
+ConditionPathExists=!/etc/et-debian-nosleep
+
+[Service]
+Type=oneshot
+Environment=ET_DEBIAN_WAKE_HOUR=15
+Environment=ET_DEBIAN_WAKE_MIN=0
+Environment=ET_DEBIAN_SLEEP_MODE=mem
+ExecStart=/usr/local/sbin/et-debian-sleep-until-wake

@@ -52,6 +52,7 @@ scripts/20-users.sh      # etshare, et-dev, et-startup (optional)
 scripts/30-desktop.sh    # X11 preference, xrdp (:3389)
 scripts/40-apps.sh       # Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina
 scripts/50-tools.sh      # modifier-hud and small helpers
+scripts/60-power.sh      # sleep 06:00 / wake 15:00 (rtcwake + systemd)
 tools/                   # source for helpers installed under /usr/local
 docs/APPS.md             # codified app inventory
 docs/SECURITY.md         # what must never be committed

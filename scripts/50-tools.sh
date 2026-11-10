@@ -21,15 +21,13 @@ fi
 
 # Autostart for logged-in graphical user (et)
 if [[ -f "${XDG_SRC}/modifier-hud.desktop" ]]; then
-  for u in et et-dev et-startup; do
-    if id "${u}" >/dev/null 2>&1; then
-      home="$(getent passwd "${u}" | cut -d: -f6)"
-      as_root install -d -o "${u}" -g "${u}" "${home}/.config/autostart"
-      as_root install -m 0644 -o "${u}" -g "${u}" \
-        "${XDG_SRC}/modifier-hud.desktop" \
-        "${home}/.config/autostart/modifier-hud.desktop"
-    fi
-  done
+  if id et >/dev/null 2>&1; then
+    home="$(getent passwd et | cut -d: -f6)"
+    as_root install -d -o et -g et "${home}/.config/autostart"
+    as_root install -m 0644 -o et -g et \
+      "${XDG_SRC}/modifier-hud.desktop" \
+      "${home}/.config/autostart/modifier-hud.desktop"
+  fi
 fi
 
 log "tools done"

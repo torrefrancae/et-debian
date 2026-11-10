@@ -48,7 +48,7 @@ ssh et@et-debian.local 'bash -s' < scripts/bootstrap.sh
 ```
 scripts/bootstrap.sh     # entrypoint
 scripts/10-base.sh       # apt base + timezone + avahi/ssh
-scripts/20-users.sh      # etshare, et-dev, et-startup (optional)
+scripts/20-users.sh      # ensure et (+ optional extras if CREATE_*=1)
 scripts/30-desktop.sh    # X11 preference, xrdp (:3389)
 scripts/40-apps.sh       # Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina
 scripts/50-tools.sh      # modifier-hud and small helpers

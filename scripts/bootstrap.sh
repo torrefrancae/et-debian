@@ -7,9 +7,10 @@ source "${HERE}/lib.sh"
 
 export ET_HOSTNAME="${ET_HOSTNAME:-et-debian}"
 export ET_TIMEZONE="${ET_TIMEZONE:-Asia/Manila}"
-export CREATE_ETSHARE="${CREATE_ETSHARE:-1}"
-export CREATE_ET_DEV="${CREATE_ET_DEV:-1}"
-export CREATE_ET_STARTUP="${CREATE_ET_STARTUP:-1}"
+# Extra accounts off by default — keep only et + root on a fresh host.
+export CREATE_ETSHARE="${CREATE_ETSHARE:-0}"
+export CREATE_ET_DEV="${CREATE_ET_DEV:-0}"
+export CREATE_ET_STARTUP="${CREATE_ET_STARTUP:-0}"
 
 log "bootstrap start (repo=${REPO_ROOT})"
 ensure_no_docker

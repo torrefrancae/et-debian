@@ -61,12 +61,11 @@ else
 fi
 
 # 4) Per-user gsettings for existing sessions / homes
-for u in et et-dev et-startup etshare; do
+for u in et; do
   if ! id "${u}" >/dev/null 2>&1; then
     continue
   fi
   uid="$(id -u "${u}")"
-  home="$(getent passwd "${u}" | cut -d: -f6)"
   bus="/run/user/${uid}/bus"
   run_gs() {
     if [[ -S "${bus}" ]]; then

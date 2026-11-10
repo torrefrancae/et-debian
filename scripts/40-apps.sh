@@ -141,19 +141,18 @@ install_screenshot_monitor() {
       as_root apt-get install -y -f
   fi
 
-  # Autostart for et-dev (lab capture account)
-  local desk_src desk_dst home
+  # Autostart for et (sole lab account)
+  local desk_src home
   desk_src="/usr/share/applications/screenshotmonitor.desktop"
   if [[ ! -f "${desk_src}" ]]; then
-    # some builds use different name
     desk_src="$(find /usr/share/applications -iname '*screenshot*monitor*.desktop' 2>/dev/null | head -1 || true)"
   fi
-  if [[ -n "${desk_src}" && -f "${desk_src}" ]] && id et-dev >/dev/null 2>&1; then
-    home="$(getent passwd et-dev | cut -d: -f6)"
-    as_root install -d -o et-dev -g et-dev "${home}/.config/autostart"
-    as_root install -m 0644 -o et-dev -g et-dev "${desk_src}" \
+  if [[ -n "${desk_src}" && -f "${desk_src}" ]] && id et >/dev/null 2>&1; then
+    home="$(getent passwd et | cut -d: -f6)"
+    as_root install -d -o et -g et "${home}/.config/autostart"
+    as_root install -m 0644 -o et -g et "${desk_src}" \
       "${home}/.config/autostart/screenshotmonitor.desktop"
-    log "Screenshot Monitor autostart → et-dev"
+    log "Screenshot Monitor autostart → et"
   fi
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Optional lab users. Passwords are NOT set from the repo — operator sets them.
+# Ensure only the installer user `et` (plus root). Extra lab users are opt-in.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
@@ -28,14 +28,15 @@ if ! groups et | grep -qw sudo; then
   as_root usermod -aG sudo et || log "could not add et to sudo — use su with root password"
 fi
 
-if [[ "${CREATE_ETSHARE:-1}" == "1" ]]; then
+# Default OFF — host keeps only et + root unless explicitly enabled.
+if [[ "${CREATE_ETSHARE:-0}" == "1" ]]; then
   ensure_user etshare "shared lab account"
 fi
-if [[ "${CREATE_ET_DEV:-1}" == "1" ]]; then
+if [[ "${CREATE_ET_DEV:-0}" == "1" ]]; then
   ensure_user et-dev "dev account"
 fi
-if [[ "${CREATE_ET_STARTUP:-1}" == "1" ]]; then
+if [[ "${CREATE_ET_STARTUP:-0}" == "1" ]]; then
   ensure_user et-startup "startup / kiosk account"
 fi
 
-log "users done"
+log "users done (default: et + root only)"

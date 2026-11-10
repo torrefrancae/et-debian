@@ -90,27 +90,19 @@ exec /bin/sh /etc/X11/Xsession
 STARTWM
 as_root chmod 755 /etc/xrdp/startwm.sh
 
-for u in et et-dev et-startup; do
-  if id "${u}" >/dev/null 2>&1; then
-    home="$(getent passwd "${u}" | cut -d: -f6)"
-    as_root bash -c "
-      install -d -o '${u}' -g '${u}' '${home}'
-      printf '%s\n' 'export XDG_SESSION_TYPE=x11' 'export GNOME_SHELL_SESSION_MODE=gnome' > '${home}/.xsessionrc'
-      chown '${u}:${u}' '${home}/.xsessionrc'
-    "
-  fi
-done
+if id et >/dev/null 2>&1; then
+  home="$(getent passwd et | cut -d: -f6)"
+  as_root bash -c "
+    install -d -o et -g et '${home}'
+    printf '%s\n' 'export XDG_SESSION_TYPE=x11' 'export GNOME_SHELL_SESSION_MODE=gnome' > '${home}/.xsessionrc'
+    chown et:et '${home}/.xsessionrc'
+  "
+  as_root usermod -aG ssl-cert et || true
+fi
 
 as_root systemctl enable --now xrdp-sesman || true
 as_root systemctl enable --now xrdp || true
 as_root systemctl restart xrdp-sesman xrdp || true
-
-# ssl-cert membership for xrdp cert access
-for u in et et-dev et-startup etshare; do
-  if id "${u}" >/dev/null 2>&1; then
-    as_root usermod -aG ssl-cert "${u}" || true
-  fi
-done
 
 # Allow RDP through nftables/ufw when those tools manage the firewall
 if command -v ufw >/dev/null 2>&1 && as_root ufw status 2>/dev/null | grep -qi active; then

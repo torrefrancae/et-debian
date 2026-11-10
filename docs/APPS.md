@@ -7,7 +7,7 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **xrdp + xorgxrdp** | Remote desktop (:3389) | apt; GDM `WaylandEnable=false` |
 | **Google Chrome** | Browser | official `.deb` |
 | **Cursor** | Editor | Cursor aptrepo / golden `.deb` |
-| **Screenshot Monitor** 1.3.1 | Time/screenshot capture | S3 `.deb` + `mono-complete` + Bookworm `gtk-sharp2` stack; autostart for **et-dev** |
+| **Screenshot Monitor** 1.3.1 | Time/screenshot capture | S3 `.deb` + `mono-complete` + Bookworm `gtk-sharp2` stack; autostart for **et** |
 | **AnyDesk** | Remote assistance | pinned amd64 `.deb` (override `ANYDESK_AMD64_URL`) |
 | **Remmina** (+ RDP/VNC plugins) | Client remotes | apt |
 | **TigerVNC viewer** | VNC client | apt |

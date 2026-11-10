@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Enable RTC alarm wake from Linux (sysfs + ACPI). No Docker.
-# Safe to re-run. Does not open BIOS — only flips what the kernel exposes.
+# Safe / idempotent. Does not open BIOS — only flips what the kernel exposes.
 set -euo pipefail
 
 log() { logger -t et-debian-rtc "$*"; printf '[et-debian-rtc] %s\n' "$*"; }
@@ -35,20 +35,18 @@ for p in \
   enable_sysfs_wakeup "${p}"
 done
 
-# Also enable wakeup on the parent ACPI/platform device if present
 if [[ -e /sys/class/rtc/rtc0/device ]]; then
   dev="$(readlink -f /sys/class/rtc/rtc0/device || true)"
   if [[ -n "${dev}" && -f "${dev}/power/wakeup" ]]; then
     enable_sysfs_wakeup "${dev}/power/wakeup"
   fi
-  # walk one parent up (often the ACPI node)
   parent="$(dirname "${dev}")"
-  if [[ -f "${parent}/power/wakeup" ]]; then
+  if [[ -n "${parent}" && -f "${parent}/power/wakeup" ]]; then
     enable_sysfs_wakeup "${parent}/power/wakeup"
   fi
 fi
 
-# 2) ACPI wakeup table — enable any RTC / ALARM rows that are disabled
+# 2) ACPI wakeup table — enable RTC / ALARM rows that are disabled
 if [[ -f /proc/acpi/wakeup ]]; then
   while read -r device rest; do
     [[ "${device}" == "Device" || -z "${device}" ]] && continue
@@ -87,34 +85,13 @@ if [[ -f /sys/power/mem_sleep ]]; then
   fi
 fi
 
-# Persist deep preference across boots when possible
-mkdir -p /etc/tmpfiles.d
-cat >/etc/tmpfiles.d/et-debian-mem-sleep.conf <<'EOF'
+# Persist deep preference across boots (tmpfiles applies early)
+if [[ "${ET_DEBIAN_RTC_INSTALL_HOOKS:-1}" == "1" ]]; then
+  mkdir -p /etc/tmpfiles.d
+  cat >/etc/tmpfiles.d/et-debian-mem-sleep.conf <<'EOF'
 # Prefer S3 (deep) so RTC alarm wake works more reliably than s2idle.
 w /sys/power/mem_sleep - - - - deep
 EOF
-
-# Persist ACPI RTC enable on boot (device names vary; script re-runs)
-install -d /etc/systemd/system
-cat >/etc/systemd/system/et-debian-rtc-wake.service <<'EOF'
-[Unit]
-Description=et-debian: enable RTC alarm wake (sysfs + ACPI)
-DefaultDependencies=no
-After=systemd-modules-load.service
-Before=sleep.target et-debian-sleep.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/sbin/et-debian-enable-rtc-wake
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target sleep.target
-EOF
-
-systemctl daemon-reload
-systemctl enable et-debian-rtc-wake.service >/dev/null
-systemctl start et-debian-rtc-wake.service >/dev/null || true
+fi
 
 log "RTC wake enable pass complete"
-log "note: if the machine still will not resume, some OEM firmwares gate the alarm in BIOS — OS cannot override that"

@@ -22,16 +22,19 @@ as_root install -m 0644 \
 as_root install -m 0644 \
   "${REPO_ROOT}/conf/systemd/et-debian-sleep.timer" \
   /etc/systemd/system/et-debian-sleep.timer
+as_root install -m 0644 \
+  "${REPO_ROOT}/conf/systemd/et-debian-rtc-wake.service" \
+  /etc/systemd/system/et-debian-rtc-wake.service
 
 # Keep wall clock honest so OnCalendar fires at real 06:00
 as_root timedatectl set-ntp true || true
 
-# Flip kernel/ACPI RTC wake on now (and install boot/sleep hook)
+# Flip kernel/ACPI RTC wake on now; service re-asserts on boot/before sleep
 as_root /usr/local/sbin/et-debian-enable-rtc-wake
 
 as_root systemctl daemon-reload
 as_root systemctl enable --now et-debian-sleep.timer
-as_root systemctl enable et-debian-rtc-wake.service || true
+as_root systemctl enable --now et-debian-rtc-wake.service || true
 
 log "timer status:"
 as_root systemctl list-timers et-debian-sleep.timer --no-pager || true

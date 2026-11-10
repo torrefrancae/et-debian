@@ -1,0 +1,13 @@
+[Unit]
+Description=et-debian: enable RTC alarm wake (sysfs + ACPI)
+After=systemd-modules-load.service
+Before=sleep.target et-debian-sleep.service
+
+[Service]
+Type=oneshot
+Environment=ET_DEBIAN_RTC_INSTALL_HOOKS=0
+ExecStart=/usr/local/sbin/et-debian-enable-rtc-wake
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target sleep.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=et-debian: re-assert physical panel power-off
+After=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/et-debian-panel-keep-off

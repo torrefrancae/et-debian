@@ -11,7 +11,7 @@ Goal: wipe / reinstall Debian desktop, then re-apply this repo and be productive
 | Host bootstrap scripts | Passwords, VPN profiles, SSH private keys |
 | Desktop/RDP/base package lists | Agent / Seatrix rule packs |
 | Lab apps: RDP, Chrome, Cursor, scrin.io, AnyDesk, Remmina | Camera / VPN / AnyDesk unattended passwords |
-| Small tools (modifier-hud, helpers) | Machine-local `~/proj` product trees |
+| Small tools (modifier-hud, chrome-dev, workin, helpers) | Machine-local `~/proj` product trees |
 
 ## Requirements
 

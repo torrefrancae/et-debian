@@ -19,6 +19,16 @@ if [[ -f "${TOOLS_SRC}/mouse-circle.sh" ]]; then
   as_root install -m 0755 "${TOOLS_SRC}/mouse-circle.sh" /usr/local/bin/mouse-circle
 fi
 
+if [[ -f "${TOOLS_SRC}/chrome-dev.sh" ]]; then
+  log "install chrome-dev"
+  as_root install -m 0755 "${TOOLS_SRC}/chrome-dev.sh" /usr/local/bin/chrome-dev
+fi
+
+if [[ -f "${TOOLS_SRC}/workin.sh" ]]; then
+  log "install workin"
+  as_root install -m 0755 "${TOOLS_SRC}/workin.sh" /usr/local/bin/workin
+fi
+
 if [[ -f "${TOOLS_SRC}/et-debian-workspace-keys.sh" ]]; then
   log "Super+Left/Right → workspace switch (not window snap)"
   as_root install -m 0755 \

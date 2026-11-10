@@ -22,12 +22,13 @@ find_wid() {
 
 make_sticky() {
   local wid="$1"
-  # Order matters on mutter: sticky first, then all-desktops, then sticky again.
+  # Sticky = all workspaces. Never keep "above" (always-on-top) — scrin.io must stay
+  # reachable on every desktop without covering other apps.
+  wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
-  xprop -id "$wid" -f _NET_WM_STATE 32a -set _NET_WM_STATE '_NET_WM_STATE_STICKY' 2>/dev/null || true
   xprop -id "$wid" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP 0xFFFFFFFF 2>/dev/null || true
   wmctrl -i -r "$wid" -t -1 2>/dev/null || true
-  wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
+  wmctrl -i -r "$wid" -b remove,above,add,sticky 2>/dev/null || true
 }
 
 wid=""

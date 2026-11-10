@@ -12,6 +12,9 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **Remmina** (+ RDP/VNC plugins) | Client remotes | apt |
 | **TigerVNC viewer** | VNC client | apt |
 | **modifier-hud** | Ctrl/Shift/Cmd OSD | `scripts/50-tools.sh` |
+| **chrome-dev** | Quit this user’s Chrome, relaunch with DevTools | `/usr/local/bin/chrome-dev` |
+| **workin** | Open a project path in Cursor (+ optional terminal/browser) | `/usr/local/bin/workin` |
+
 | **Sleep / wake** | Suspend **06:00**, RTC wake **15:00** (local) | `scripts/60-power.sh` → `et-debian-sleep.timer` + `rtcwake` |
 | **Idle / display** | No fake black blank; **physical panel real-off** (DRM dpms + backlight); machine stays awake | `et-debian-panel-off` at boot + idle helper; only 06:00 timer suspends |
 | **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` (sysfs `wakeup=enabled`, ACPI `RTC*` on, prefer `mem_sleep=deep`) |

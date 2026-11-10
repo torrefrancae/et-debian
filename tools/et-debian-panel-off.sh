@@ -24,25 +24,40 @@ done
 
 # Backlight to 0 as a second belt (some panels ignore connector dpms alone)
 mkdir -p /var/lib/et-debian
+# Allow keep-off timer to run again (panel-on sets this flag)
+rm -f /var/lib/et-debian/panel-keep-on
 for bl in /sys/class/backlight/*/brightness; do
   [[ -e "${bl}" ]] || continue
   dir="$(dirname "${bl}")"
   maxf="${dir}/max_brightness"
+  bpf="${dir}/bl_power"
   cur="$(cat "${bl}" 2>/dev/null || echo 0)"
   # remember last non-zero so panel-on can restore
   if [[ "${cur}" != "0" ]]; then
     echo "${cur}" >"/var/lib/et-debian/backlight-$(basename "${dir}").saved"
   fi
   echo 0 >"${bl}" 2>/dev/null || true
-  log "backlight 0: ${bl} (max=$(cat "${maxf}" 2>/dev/null || echo '?'))"
+  # 4 = FB_BLANK_POWERDOWN when the driver supports it
+  if [[ -e "${bpf}" ]]; then
+    echo 4 >"${bpf}" 2>/dev/null || echo 1 >"${bpf}" 2>/dev/null || true
+  fi
+  log "backlight 0: ${bl} (max=$(cat "${maxf}" 2>/dev/null || echo '?') bl_power=$(cat "${bpf}" 2>/dev/null || echo '?'))"
   off=1
 done
 
 # Framebuffer blank (console / leftover VTs) — 1=blank, 4=VESA powerdown when supported
 for fb in /sys/class/graphics/fb*/blank; do
   [[ -e "${fb}" ]] || continue
-  echo 1 >"${fb}" 2>/dev/null || true
+  echo 4 >"${fb}" 2>/dev/null || echo 1 >"${fb}" 2>/dev/null || true
 done
+
+# Local seat0 (GDM) often re-lights eDP — blank its X screen saver hard when present.
+if [[ -S /tmp/.X11-unix/X0 ]]; then
+  for xa in /run/user/112/gdm/Xauthority /var/lib/gdm3/.Xauthority /run/gdm3/auth-for-*/database; do
+    [[ -e ${xa} ]] || continue
+    DISPLAY=:0 XAUTHORITY="${xa}" xset s off s noblank dpms force off 2>/dev/null || true
+  done
+fi
 
 if [[ "${off}" -eq 0 ]]; then
   log "no eDP/LVDS backlight/dpms nodes found — nothing to power off"

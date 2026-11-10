@@ -10,7 +10,7 @@ apt_install \
   xorg xrdp xorgxrdp \
   dbus-x11 \
   gnome-session gnome-terminal \
-  policykit-1
+  polkitd pkexec
 
 # Prefer Xorg for RDP/modifier-hud (Wayland is fine locally; xrdp wants X11)
 GDM_CONF=/etc/gdm3/daemon.conf

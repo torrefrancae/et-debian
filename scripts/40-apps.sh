@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lab apps — native .deb/apt only. No Docker.
-# Codifies: Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina, helpers.
+# Codifies: Chrome, Cursor, scrin.io, AnyDesk, Remmina, helpers.
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
@@ -9,8 +9,11 @@ ARCH="$(dpkg --print-architecture)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
-BOOKWORM_GTK_SHARP_BASE="https://deb.debian.org/debian/pool/main/g/gtk-sharp2"
-SSM_DEB_URL="${SSM_DEB_URL:-https://screenshotmonitor-download.s3.amazonaws.com/linux/ScreenshotMonitor.deb}"
+# Modern Scrin.io Electron app (replaces legacy mono Screenshot Monitor 1.3.1).
+# Official dashboard download requires login; this is the published amd64 .deb mirror.
+SCRIN_DEB_URL="${SCRIN_DEB_URL:-https://raw.githubusercontent.com/tickernelz/scrin_io/master/scrin.io-amd64.deb}"
+# Optional legacy mono package (only if SCRIN_USE_LEGACY=1)
+SSM_LEGACY_DEB_URL="${SSM_LEGACY_DEB_URL:-https://screenshotmonitor-download.s3.amazonaws.com/linux/ScreenshotMonitor.deb}"
 # Pin a known-good AnyDesk amd64 build (site “latest” links are flaky / CF-gated).
 ANYDESK_AMD64_URL="${ANYDESK_AMD64_URL:-https://download.anydesk.com/linux/anydesk_6.4.0-1_amd64.deb}"
 
@@ -75,84 +78,54 @@ install_cursor() {
     log "Cursor .deb install failed — https://cursor.com/download"
 }
 
-install_gtk_sharp2() {
-  if dpkg -s gtk-sharp2 >/dev/null 2>&1; then
-    log "gtk-sharp2 already installed"
-    return
-  fi
-  # Trixie dropped gtk-sharp2; pull Bookworm runtime debs for this arch.
-  log "install gtk-sharp2 from Debian bookworm pool (${ARCH})"
-  local dir="${TMP}/gtk-sharp2"
-  mkdir -p "${dir}"
-  local files=(
-    "libglib2.0-cil_2.12.40-3.1_${ARCH}.deb"
-    "libgtk2.0-cil_2.12.40-3.1_${ARCH}.deb"
-    "libglade2.0-cil_2.12.40-3.1_${ARCH}.deb"
-    "gtk-sharp2_2.12.40-3.1_all.deb"
-  )
-  local f
-  for f in "${files[@]}"; do
-    curl -fsSL -o "${dir}/${f}" "${BOOKWORM_GTK_SHARP_BASE}/${f}" || \
-      die "failed to download ${f}"
-  done
-  # Native GTK2 bits still in trixie (t64 names).
-  apt_install libgtk2.0-0t64 || apt_install libgtk2.0-0 || true
-  # libglade2 may be gone; try bookworm if missing.
-  if ! dpkg -s libglade2-0 >/dev/null 2>&1 && ! dpkg -s libglade2-0t64 >/dev/null 2>&1; then
-    log "fetch bookworm libglade2-0"
-    local glade
-    glade="$(curl -fsSL "https://packages.debian.org/bookworm/${ARCH}/libglade2-0/download" \
-      | grep -oE 'https?://(deb|ftp)\.debian\.org/debian/pool/[^\"[:space:]]+\.deb' | head -1 || true)"
-    if [[ -n "${glade}" ]]; then
-      curl -fsSL -o "${dir}/libglade2-0.deb" "${glade}"
-      as_root dpkg -i "${dir}/libglade2-0.deb" || as_root apt-get install -y -f || true
-    fi
-  fi
-  as_root dpkg -i "${dir}"/*.deb || as_root apt-get install -y -f
-  # If meta still missing (Provides conflict), synthesize with equivs.
-  if ! dpkg -s gtk-sharp2 >/dev/null 2>&1; then
-    log "gtk-sharp2 meta missing — create equivs package"
-    apt_install equivs
-    cat > "${TMP}/gtk-sharp2-equiv" <<'EOF'
-Section: misc
-Priority: optional
-Standards-Version: 3.9.2
-Package: gtk-sharp2
-Version: 2.12.40-3.1+etdebian
-Maintainer: et-debian bootstrap
-Depends: libgtk2.0-cil, libglib2.0-cil, libglade2.0-cil
-Description: equivs meta for Screenshot Monitor on Debian 13
-EOF
-    (cd "${TMP}" && equivs-build gtk-sharp2-equiv >/dev/null)
-    as_root dpkg -i "${TMP}"/gtk-sharp2_*.deb
-  fi
-}
-
-install_screenshot_monitor() {
-  if dpkg -s screenshotmonitor >/dev/null 2>&1 || command -v screenshotmonitor >/dev/null 2>&1; then
-    log "Screenshot Monitor already installed"
-  else
-    log "install Screenshot Monitor 1.3.1"
-    apt_install mono-complete xprintidle xdotool gnome-screenshot
-    install_gtk_sharp2
-    curl -fsSL -o "${TMP}/ScreenshotMonitor.deb" "${SSM_DEB_URL}"
+install_scrin() {
+  # Prefer modern scrin.io; remove legacy mono Screenshot Monitor if present.
+  if dpkg -s scrin.io >/dev/null 2>&1 || command -v scrin.io >/dev/null 2>&1 || [[ -x /opt/scrin.io/scrin.io ]]; then
+    log "scrin.io already installed"
+  elif [[ "${SCRIN_USE_LEGACY:-0}" == "1" ]]; then
+    log "SCRIN_USE_LEGACY=1 — install classic Screenshot Monitor"
+    apt_install mono-complete xprintidle xdotool gnome-screenshot || true
+    curl -fsSL -o "${TMP}/ScreenshotMonitor.deb" "${SSM_LEGACY_DEB_URL}"
     as_root apt-get install -y "${TMP}/ScreenshotMonitor.deb" || \
-      as_root dpkg -i "${TMP}/ScreenshotMonitor.deb" || \
-      as_root apt-get install -y -f
+      as_root dpkg -i "${TMP}/ScreenshotMonitor.deb" || true
+  else
+    case "${ARCH}" in
+      amd64)
+        log "install scrin.io (modern Electron .deb)"
+        # Drop legacy mono app to avoid two trackers
+        if dpkg -s screenshotmonitor >/dev/null 2>&1; then
+          as_root apt-get remove -y screenshotmonitor || true
+        fi
+        apt_install libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
+          libatspi2.0-0t64 libuuid1 libsecret-1-0 gnome-screenshot || \
+          apt_install libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
+            libatspi2.0-0 libuuid1 libsecret-1-0 gnome-screenshot || true
+        curl -fsSL -L -o "${TMP}/scrin.io.deb" "${SCRIN_DEB_URL}" || \
+          die "scrin.io download failed — set SCRIN_DEB_URL or download from https://scrin.io/download"
+        as_root apt-get install -y "${TMP}/scrin.io.deb" || {
+          as_root dpkg -i "${TMP}/scrin.io.deb" || true
+          as_root apt-get install -y -f || true
+        }
+        ;;
+      *)
+        log "scrin.io official .deb is amd64-only — skip on ${ARCH} (set SCRIN_DEB_URL for a custom build)"
+        ;;
+    esac
   fi
 
-  # Autostart for et (sole lab account)
+  # Autostart for et
   local desk_src home
-  desk_src="/usr/share/applications/screenshotmonitor.desktop"
+  desk_src="/usr/share/applications/scrin.io.desktop"
   if [[ ! -f "${desk_src}" ]]; then
-    desk_src="$(find /usr/share/applications -iname '*screenshot*monitor*.desktop' 2>/dev/null | head -1 || true)"
+    desk_src="$(find /usr/share/applications \( -iname '*scrin*' -o -iname '*screenshot*monitor*.desktop' \) 2>/dev/null | head -1 || true)"
   fi
   if [[ -n "${desk_src}" && -f "${desk_src}" ]] && id et >/dev/null 2>&1; then
     home="$(getent passwd et | cut -d: -f6)"
     as_root install -d -o et -g et "${home}/.config/autostart"
     as_root install -m 0644 -o et -g et "${desk_src}" \
-      "${home}/.config/autostart/screenshotmonitor.desktop"
-    log "Screenshot Monitor autostart → et"
+      "${home}/.config/autostart/scrin.io.desktop"
+    as_root rm -f "${home}/.config/autostart/screenshotmonitor.desktop"
+    log "scrin.io autostart → et"
   fi
 }
 
@@ -210,8 +183,8 @@ install_remote_helpers() {
 
 install_chrome
 install_cursor
-install_screenshot_monitor
+install_scrin
 install_anydesk
 install_remote_helpers
 
-log "apps done (Chrome, Cursor, Screenshot Monitor, AnyDesk, Remmina)"
+log "apps done (Chrome, Cursor, scrin.io, AnyDesk, Remmina)"

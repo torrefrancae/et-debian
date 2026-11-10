@@ -13,7 +13,7 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **TigerVNC viewer** | VNC client | apt |
 | **modifier-hud** | Ctrl/Shift/Cmd OSD | `scripts/50-tools.sh` |
 | **Sleep / wake** | Suspend **06:00**, RTC wake **15:00** (local) | `scripts/60-power.sh` → `et-debian-sleep.timer` + `rtcwake` |
-| **Idle policy** | Screen may blank (~5 min); machine does **not** idle-suspend | `et-debian-disable-idle-sleep`; only 06:00 timer suspends |
+| **Idle / display** | No fake black blank; **physical panel real-off** (DRM dpms + backlight); machine stays awake | `et-debian-panel-off` at boot + idle helper; only 06:00 timer suspends |
 | **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` (sysfs `wakeup=enabled`, ACPI `RTC*` on, prefer `mem_sleep=deep`) |
 
 Hold overnight awake: `sudo touch /etc/et-debian-nosleep` (remove the file to resume the schedule).

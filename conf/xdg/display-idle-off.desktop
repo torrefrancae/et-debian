@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=et-debian display idle off
+Comment=Power off physical panel on idle (no fake black blank)
+Exec=/usr/local/bin/et-debian-display-idle-off
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=5
+OnlyShowIn=GNOME;GNOME-Classic;XFCE;

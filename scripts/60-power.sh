@@ -11,7 +11,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 log "power policy (5m idle panel-off; schedule 06:00 → 15:00) + RTC wake"
 apt_update
-apt_install util-linux dconf-cli libglib2.0-bin xprintidle x11-xserver-utils
+apt_install util-linux dconf-cli libglib2.0-bin xprintidle x11-xserver-utils xdotool
 
 as_root install -d /usr/local/sbin /usr/local/bin /etc/systemd/system /var/lib/et-debian
 as_root install -m 0755 \

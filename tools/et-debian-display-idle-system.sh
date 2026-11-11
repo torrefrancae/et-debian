@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# System-wide idle watcher (root via systemd).
-# - 5 minutes with no keyboard/mouse (evdev) → physical panel off
-# - On input → panel on + reset X idle (avoids login flash then black+cursor)
-# Never suspends — only et-debian-sleep.timer (06:00) does that.
+# Real panel power management while the machine stays awake.
+#
+# Idle 5 minutes (keyboard/mouse only — ignore ABS sensors) → DRM/backlight OFF.
+# While blanked, re-assert OFF every poll so GNOME cannot leave "black + lights".
+# Any key/mouse → panel ON + wake/repair the GDM greeter UI.
+#
+# System sleep is NOT done here — only et-debian-sleep.timer (06:00).
 set -euo pipefail
 
 BLANK_SECS="${ET_DEBIAN_SCREEN_BLANK_SECS:-300}"
@@ -11,7 +14,7 @@ PANEL_OFF=/usr/local/sbin/et-debian-panel-off
 PANEL_ON=/usr/local/sbin/et-debian-panel-on
 STATE_DIR=/run/et-debian
 ACT_FILE="${STATE_DIR}/last-input-epoch"
-off=0
+blanked=0
 last_seen=0
 grace_until=0
 
@@ -22,15 +25,23 @@ printf '%s\n' "$(date +%s)" >"${ACT_FILE}.tmp"
 mv -f "${ACT_FILE}.tmp" "${ACT_FILE}"
 last_seen="$(tr -d '[:space:]' <"${ACT_FILE}")"
 
-# Background: watch evdev for KEY/REL/ABS; atomically update ACT_FILE.
+# Evdev watcher: KEY and REL only. ABS (accel/lid/touchpad noise) ignored.
 python3 - <<'PY' &
 import os, struct, select, time, glob, tempfile
 act = "/run/et-debian/last-input-epoch"
 fmt = "llHHI"
 size = struct.calcsize(fmt)
-want = {1, 2, 3}  # EV_KEY, EV_REL, EV_ABS
+EV_KEY, EV_REL = 1, 2
 fds = []
 for path in sorted(glob.glob("/dev/input/event*")):
+    # Skip known non-user devices by name when possible
+    name_path = f"/sys/class/input/{os.path.basename(path)}/device/name"
+    try:
+        name = open(name_path, "r", encoding="utf-8", errors="ignore").read().strip().lower()
+    except OSError:
+        name = ""
+    if any(x in name for x in ("accel", "gyro", "lid", "power", "sleep", "video bus", "hd audio", "pcspkr", "intel hid")):
+        continue
     try:
         fds.append(os.open(path, os.O_RDONLY | os.O_NONBLOCK))
     except OSError:
@@ -39,11 +50,10 @@ if not fds:
     raise SystemExit(0)
 
 def stamp():
-    now = str(int(time.time()))
-    d = os.path.dirname(act)
-    fd, tmp = tempfile.mkstemp(prefix="act-", dir=d)
+    now = str(int(time.time())) + "\n"
+    fd, tmp = tempfile.mkstemp(prefix="act-", dir=os.path.dirname(act))
     try:
-        os.write(fd, (now + "\n").encode())
+        os.write(fd, now.encode())
         os.close(fd)
         os.rename(tmp, act)
     except Exception:
@@ -65,9 +75,11 @@ while True:
         except (BlockingIOError, OSError):
             continue
         for i in range(0, len(data) - size + 1, size):
-            _, _, typ, _, val = struct.unpack_from(fmt, data, i)
-            # KEY down/up (val 0/1/2), any REL/ABS
-            if typ in want:
+            _, _, typ, code, val = struct.unpack_from(fmt, data, i)
+            if typ == EV_KEY and val != 0:  # key/button press or repeat
+                hit = True
+                break
+            if typ == EV_REL and val != 0:  # real mouse movement/wheel
                 hit = True
                 break
         if hit:
@@ -82,40 +94,55 @@ read_act() {
   tr -d '[:space:]' <"${ACT_FILE}" 2>/dev/null || date +%s
 }
 
-wake_x() {
-  # Reset X idle + unblank so GNOME greeter does not paint once then go black+cursor.
-  local gxa disp
-  if [[ -S /tmp/.X11-unix/X0 ]]; then
-    gxa=/run/user/112/gdm/Xauthority
-    [[ -e "${gxa}" ]] || gxa="$(ls /run/user/*/gdm/Xauthority 2>/dev/null | head -1 || true)"
-    if [[ -n "${gxa:-}" && -e "${gxa}" ]]; then
-      DISPLAY=:0 XAUTHORITY="${gxa}" xset dpms force on 2>/dev/null || true
-      DISPLAY=:0 XAUTHORITY="${gxa}" xset s reset -dpms s off s noblank 2>/dev/null || true
-      # Synthetic motion resets X's internal idle counter (space alone often does not).
-      DISPLAY=:0 XAUTHORITY="${gxa}" xdotool mousemove_relative -- 1 0 mousemove_relative -- -1 0 2>/dev/null || true
-      DISPLAY=:0 XAUTHORITY="${gxa}" dbus-send --session --dest=org.gnome.ScreenSaver \
-        --type=method_call /org/gnome/ScreenSaver org.gnome.ScreenSaver.SetActive boolean:false 2>/dev/null || true
-    fi
+panel_is_lit() {
+  local bl bp
+  bl="$(cat /sys/class/backlight/intel_backlight/brightness 2>/dev/null || echo 0)"
+  bp="$(cat /sys/class/backlight/intel_backlight/bl_power 2>/dev/null || echo 0)"
+  # lit if brightness > 0 and not powered down
+  [[ "${bl}" != "0" && "${bp}" != "4" ]]
+}
+
+wake_greeter() {
+  local gxa
+  gxa=/run/user/112/gdm/Xauthority
+  [[ -e "${gxa}" ]] || gxa="$(ls /run/user/*/gdm/Xauthority 2>/dev/null | head -1 || true)"
+  [[ -n "${gxa:-}" && -e "${gxa}" && -S /tmp/.X11-unix/X0 ]] || return 0
+
+  # Unblank + reset idle as the greeter user (never as root — that spawned a bad ScreenSaver).
+  runuser -u Debian-gdm -- env DISPLAY=:0 XAUTHORITY="${gxa}" \
+    xset dpms force on s reset -dpms s off s noblank 2>/dev/null || true
+  runuser -u Debian-gdm -- env DISPLAY=:0 XAUTHORITY="${gxa}" \
+    xdotool mousemove 960 540 mousemove_relative -- 1 0 mousemove_relative -- -1 0 2>/dev/null || true
+
+  # If X idle is still huge, greeter UI is stuck black — bounce gnome-shell (GDM respawns it).
+  local idle_ms
+  idle_ms="$(runuser -u Debian-gdm -- env DISPLAY=:0 XAUTHORITY="${gxa}" xprintidle 2>/dev/null || echo 0)"
+  if [[ "${idle_ms}" =~ ^[0-9]+$ ]] && (( idle_ms > 5000 )); then
+    log "greeter X-idle=${idle_ms}ms after wake — restarting gdm gnome-shell"
+    pkill -u Debian-gdm -x gnome-shell 2>/dev/null || true
+    sleep 2
+    runuser -u Debian-gdm -- env DISPLAY=:0 XAUTHORITY="${gxa}" \
+      xset dpms force on s reset -dpms s off s noblank 2>/dev/null || true
   fi
-  for disp in :10 :11; do
-    [[ -S /tmp/.X11-unix/X${disp#:} ]] || continue
-    [[ -e /home/et/.Xauthority ]] || continue
-    DISPLAY="${disp}" XAUTHORITY=/home/et/.Xauthority xset dpms force on 2>/dev/null || true
-    DISPLAY="${disp}" XAUTHORITY=/home/et/.Xauthority xset s reset -dpms s off s noblank 2>/dev/null || true
-    DISPLAY="${disp}" XAUTHORITY=/home/et/.Xauthority xdotool mousemove_relative -- 1 0 mousemove_relative -- -1 0 2>/dev/null || true
-  done
 }
 
 idle_secs() {
   local now last
   now="$(date +%s)"
   last="$(read_act)"
-  # Guard corrupt/concatenated stamps
   [[ "${last}" =~ ^[0-9]{9,12}$ ]] || last="${now}"
   echo $(( now - last ))
 }
 
-log "system idle panel watcher start (blank=${BLANK_SECS}s, evdev+X-idle-reset)"
+assert_blank() {
+  "${PANEL_OFF}" >/dev/null 2>&1 || true
+  # If something turned lights back on without UI, force off again.
+  if panel_is_lit; then
+    "${PANEL_OFF}" >/dev/null 2>&1 || true
+  fi
+}
+
+log "idle panel manager start (blank=${BLANK_SECS}s; KEY/REL only; re-assert while blank)"
 
 while true; do
   seen="$(read_act)"
@@ -124,23 +151,23 @@ while true; do
   idle="$(idle_secs)"
 
   if (( seen > last_seen )); then
-    if [[ "${off}" -eq 1 ]]; then
-      "${PANEL_ON}" >/dev/null 2>&1 || true
-      off=0
-      log "panel on (input, was blank; idle_stamp=${idle}s)"
-    fi
-    wake_x
-    # Do not re-blank for a short grace window after input (covers greeter redraw).
-    grace_until=$(( now + 15 ))
+    "${PANEL_ON}" >/dev/null 2>&1 || true
+    wake_greeter
+    blanked=0
+    grace_until=$(( now + 20 ))
     last_seen="${seen}"
+    log "panel on (input; idle_stamp=${idle}s)"
   fi
 
   if (( now >= grace_until && idle >= BLANK_SECS )); then
-    if [[ "${off}" -eq 0 ]]; then
-      "${PANEL_OFF}" >/dev/null 2>&1 || true
-      off=1
+    assert_blank
+    if [[ "${blanked}" -eq 0 ]]; then
+      blanked=1
       log "panel off (idle ${idle}s)"
     fi
+  elif [[ "${blanked}" -eq 1 ]]; then
+    # Stay truly dark until the next key/mouse — fight backlight restore / black+lights.
+    assert_blank
   fi
 
   sleep "${POLL}"

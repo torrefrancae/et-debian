@@ -74,13 +74,11 @@ as_root timedatectl set-ntp true || true
 as_root /usr/local/sbin/et-debian-disable-idle-sleep
 as_root /usr/local/sbin/et-debian-enable-rtc-wake
 
-# Optional per-session helper (system service is the source of truth)
-if id et >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/conf/xdg/display-idle-off.desktop" ]]; then
+# System service is the only idle controller — remove per-session helper so it
+# cannot fight panel on/off or leave black+backlight states.
+if id et >/dev/null 2>&1; then
   home="$(getent passwd et | cut -d: -f6)"
-  as_root install -d -o et -g et "${home}/.config/autostart"
-  as_root install -m 0644 -o et -g et \
-    "${REPO_ROOT}/conf/xdg/display-idle-off.desktop" \
-    "${home}/.config/autostart/display-idle-off.desktop"
+  as_root rm -f "${home}/.config/autostart/display-idle-off.desktop"
 fi
 
 as_root systemctl daemon-reload

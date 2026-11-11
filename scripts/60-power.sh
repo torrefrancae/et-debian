@@ -62,26 +62,32 @@ as_root timedatectl set-ntp true || true
 as_root /usr/local/sbin/et-debian-disable-idle-sleep
 as_root /usr/local/sbin/et-debian-enable-rtc-wake
 
-# Autostart idle→panel-off helper for et
-if id et >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/conf/xdg/display-idle-off.desktop" ]]; then
+# Panel helpers are installed but NOT enabled by default — auto keep-off
+# blanks the local lid at boot (looks like a dead machine). Opt in manually:
+#   sudo systemctl enable --now et-debian-panel-keep-off.timer
+#   sudo et-debian-panel-off
+# Opt out / restore lid:
+#   sudo et-debian-panel-on
+#   sudo systemctl disable --now et-debian-panel-keep-off.timer
+if id et >/dev/null 2>&1; then
   home="$(getent passwd et | cut -d: -f6)"
   as_root install -d -o et -g et "${home}/.config/autostart"
-  as_root install -m 0644 -o et -g et \
-    "${REPO_ROOT}/conf/xdg/display-idle-off.desktop" \
-    "${home}/.config/autostart/display-idle-off.desktop"
+  # Ensure the aggressive display-idle-off autostart is not left behind
+  as_root rm -f "${home}/.config/autostart/display-idle-off.desktop"
 fi
 
 as_root systemctl daemon-reload
 as_root systemctl enable --now et-debian-no-idle-sleep.service || true
-as_root systemctl enable --now et-debian-panel-off.service || true
-as_root systemctl enable --now et-debian-panel-keep-off.timer || true
+# Do not enable panel-off / keep-off on bootstrap — local console must stay usable
+as_root systemctl disable --now et-debian-panel-off.service 2>/dev/null || true
+as_root systemctl disable --now et-debian-panel-keep-off.timer 2>/dev/null || true
 as_root systemctl enable --now et-debian-sleep.timer
 as_root systemctl enable --now et-debian-rtc-wake.service || true
 
-# Power the laptop lid panel off now (RDP keeps the machine usable)
-as_root /usr/local/sbin/et-debian-panel-off || true
+# Leave the physical panel alone on bootstrap (operator may be at the lid)
+as_root touch /var/lib/et-debian/panel-keep-on || true
 
 log "timer status:"
-as_root systemctl list-timers et-debian-sleep.timer et-debian-panel-keep-off.timer --no-pager || true
-log "panel on again: sudo et-debian-panel-on"
+as_root systemctl list-timers et-debian-sleep.timer --no-pager || true
+log "optional lid off: sudo et-debian-panel-off && sudo systemctl enable --now et-debian-panel-keep-off.timer"
 log "power schedule done"

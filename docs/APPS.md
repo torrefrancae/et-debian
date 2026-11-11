@@ -16,7 +16,8 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **workin** | Open a project path in Cursor (+ optional terminal/browser) | `/usr/local/bin/workin` |
 
 | **Sleep / wake** | Suspend **06:00**, RTC wake **15:00** (local) | `scripts/60-power.sh` → `et-debian-sleep.timer` + `rtcwake` |
-| **Idle / display** | No fake black blank; **physical panel real-off** (DRM dpms + backlight); machine stays awake | `et-debian-panel-off` at boot + idle helper; only 06:00 timer suspends |
+| **Idle / display** | No idle suspend; lid stays **on** by default (safe for local login) | Optional: `sudo et-debian-panel-off` + `et-debian-panel-keep-off.timer`; restore with `sudo et-debian-panel-on` |
+
 | **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` (sysfs `wakeup=enabled`, ACPI `RTC*` on, prefer `mem_sleep=deep`) |
 
 Hold overnight awake: `sudo touch /etc/et-debian-nosleep` (remove the file to resume the schedule).

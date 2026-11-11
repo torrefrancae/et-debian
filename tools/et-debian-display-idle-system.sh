@@ -1,94 +1,113 @@
 #!/usr/bin/env bash
-# System-wide idle watcher (runs as root via systemd).
-# Picks the best local X display (GDM greeter or user session, including xrdp)
-# and turns the physical panel off after 5 minutes idle / on again on activity.
+# System-wide idle watcher (root via systemd).
+# - After 5 minutes with no keyboard/mouse activity → physical panel off
+# - On any key/mouse activity → panel on + wake local X (fixes black+cursor)
+# Uses /dev/input (evdev), not only xprintidle — X idle can stick after suspend.
 # Never suspends — only et-debian-sleep.timer does that at 06:00.
 set -euo pipefail
 
 BLANK_SECS="${ET_DEBIAN_SCREEN_BLANK_SECS:-300}"
-BLANK_MS=$((BLANK_SECS * 1000))
-POLL="${ET_DEBIAN_IDLE_POLL_SECS:-5}"
+POLL="${ET_DEBIAN_IDLE_POLL_SECS:-2}"
 PANEL_OFF=/usr/local/sbin/et-debian-panel-off
 PANEL_ON=/usr/local/sbin/et-debian-panel-on
+STATE_DIR=/run/et-debian
+ACT_FILE="${STATE_DIR}/last-input-epoch"
 off=0
+last_seen=0
 
 log() { logger -t et-debian-display "$*"; printf '[et-debian-display] %s\n' "$*"; }
 
-pick_x() {
-  # Prefer an active user graphical session; fall back to GDM greeter on :0.
-  local line sid name type remote display seat state user home auth
-  local best_disp="" best_auth="" greeter_disp="" greeter_auth=""
+mkdir -p "${STATE_DIR}"
+date +%s >"${ACT_FILE}"
+last_seen="$(cat "${ACT_FILE}")"
 
-  while IFS= read -r line; do
-    sid="${line%% *}"
-    [[ -n "$sid" ]] || continue
-    name="$(loginctl show-session "$sid" -p Name --value 2>/dev/null || true)"
-    type="$(loginctl show-session "$sid" -p Type --value 2>/dev/null || true)"
-    remote="$(loginctl show-session "$sid" -p Remote --value 2>/dev/null || true)"
-    display="$(loginctl show-session "$sid" -p Display --value 2>/dev/null || true)"
-    seat="$(loginctl show-session "$sid" -p Seat --value 2>/dev/null || true)"
-    state="$(loginctl show-session "$sid" -p State --value 2>/dev/null || true)"
-    [[ "$type" == "x11" && -n "$display" ]] || continue
+# Background: watch evdev for KEY/REL/ABS activity.
+python3 - <<'PY' &
+import os, struct, select, time, glob
+act = "/run/et-debian/last-input-epoch"
+fmt = "llHHI"
+size = struct.calcsize(fmt)
+want = {1, 2, 3}  # EV_KEY, EV_REL, EV_ABS
+fds = []
+for path in sorted(glob.glob("/dev/input/event*")):
+    try:
+        fds.append(os.open(path, os.O_RDONLY | os.O_NONBLOCK))
+    except OSError:
+        pass
+if not fds:
+    raise SystemExit(0)
+while True:
+    r, _, _ = select.select(fds, [], [], 60.0)
+    for fd in r:
+        try:
+            data = os.read(fd, size * 64)
+        except (BlockingIOError, OSError):
+            continue
+        hit = False
+        for i in range(0, len(data) - size + 1, size):
+            _, _, typ, _, _ = struct.unpack_from(fmt, data, i)
+            if typ in want:
+                hit = True
+                break
+        if hit:
+            try:
+                with open(act, "w", encoding="utf-8") as f:
+                    f.write(str(int(time.time())))
+            except OSError:
+                pass
+PY
+EVDEV_PID=$!
+trap 'kill "${EVDEV_PID}" 2>/dev/null || true' EXIT
 
-    if [[ "$name" == "Debian-gdm" || "$name" == "gdm" ]]; then
-      greeter_disp="$display"
-      greeter_auth="/run/user/$(id -u Debian-gdm 2>/dev/null || echo 112)/gdm/Xauthority"
-      [[ -e "$greeter_auth" ]] || greeter_auth="/run/user/112/gdm/Xauthority"
-      continue
+wake_x() {
+  local gxa disp
+  if [[ -S /tmp/.X11-unix/X0 ]]; then
+    gxa=/run/user/112/gdm/Xauthority
+    [[ -e "${gxa}" ]] || gxa="$(ls /run/user/*/gdm/Xauthority 2>/dev/null | head -1 || true)"
+    if [[ -n "${gxa:-}" && -e "${gxa}" ]]; then
+      DISPLAY=:0 XAUTHORITY="${gxa}" xset dpms force on 2>/dev/null || true
+      DISPLAY=:0 XAUTHORITY="${gxa}" xset s reset -dpms s off s noblank 2>/dev/null || true
     fi
-
-    user="$name"
-    home="$(getent passwd "$user" | cut -d: -f6 || true)"
-    auth="${home}/.Xauthority"
-    [[ -e "$auth" ]] || continue
-
-    # Prefer active local seat0; otherwise accept remote (xrdp) sessions.
-    if [[ "$state" == "active" && ( "$seat" == "seat0" || "$remote" == "no" ) ]]; then
-      printf '%s %s\n' "$display" "$auth"
-      return 0
-    fi
-    if [[ -z "$best_disp" ]]; then
-      best_disp="$display"
-      best_auth="$auth"
-    fi
-  done < <(loginctl list-sessions --no-legend 2>/dev/null || true)
-
-  if [[ -n "$best_disp" && -n "$best_auth" ]]; then
-    printf '%s %s\n' "$best_disp" "$best_auth"
-    return 0
   fi
-  if [[ -n "$greeter_disp" && -e "$greeter_auth" ]]; then
-    printf '%s %s\n' "$greeter_disp" "$greeter_auth"
-    return 0
-  fi
-  return 1
+  for disp in :10 :11; do
+    [[ -S /tmp/.X11-unix/X${disp#:} ]] || continue
+    [[ -e /home/et/.Xauthority ]] || continue
+    DISPLAY="${disp}" XAUTHORITY=/home/et/.Xauthority xset dpms force on 2>/dev/null || true
+    DISPLAY="${disp}" XAUTHORITY=/home/et/.Xauthority xset s reset -dpms s off s noblank 2>/dev/null || true
+  done
 }
 
-idle_ms() {
-  local disp="$1" auth="$2"
-  DISPLAY="$disp" XAUTHORITY="$auth" xprintidle 2>/dev/null || echo 0
+idle_secs() {
+  local now last
+  now="$(date +%s)"
+  last="$(cat "${ACT_FILE}" 2>/dev/null || echo "${now}")"
+  echo $(( now - last ))
 }
 
-log "system idle panel watcher start (blank=${BLANK_SECS}s)"
+log "system idle panel watcher start (blank=${BLANK_SECS}s, evdev activity)"
 
 while true; do
-  if ! read -r disp auth < <(pick_x); then
-    sleep "${POLL}"
-    continue
-  fi
-  idle="$(idle_ms "$disp" "$auth")"
-  if (( idle >= BLANK_MS )); then
-    if [[ "${off}" -eq 0 ]]; then
-      "${PANEL_OFF}" >/dev/null 2>&1 || true
-      off=1
-      log "panel off (idle ${idle}ms on ${disp})"
-    fi
-  else
+  seen="$(cat "${ACT_FILE}" 2>/dev/null || echo 0)"
+  idle="$(idle_secs)"
+
+  if (( seen > last_seen )); then
+    # Fresh keyboard/mouse activity
     if [[ "${off}" -eq 1 ]]; then
       "${PANEL_ON}" >/dev/null 2>&1 || true
       off=0
-      log "panel on (activity ${idle}ms on ${disp})"
+      log "panel on (input activity, was idle ${idle}s)"
+    fi
+    wake_x
+    last_seen="${seen}"
+  fi
+
+  if (( idle >= BLANK_SECS )); then
+    if [[ "${off}" -eq 0 ]]; then
+      "${PANEL_OFF}" >/dev/null 2>&1 || true
+      off=1
+      log "panel off (idle ${idle}s)"
     fi
   fi
+
   sleep "${POLL}"
 done

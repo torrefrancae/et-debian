@@ -51,13 +51,8 @@ for fb in /sys/class/graphics/fb*/blank; do
   echo 4 >"${fb}" 2>/dev/null || echo 1 >"${fb}" 2>/dev/null || true
 done
 
-# Local seat0 (GDM) often re-lights eDP — blank its X screen saver hard when present.
-if [[ -S /tmp/.X11-unix/X0 ]]; then
-  for xa in /run/user/112/gdm/Xauthority /var/lib/gdm3/.Xauthority /run/gdm3/auth-for-*/database; do
-    [[ -e ${xa} ]] || continue
-    DISPLAY=:0 XAUTHORITY="${xa}" xset s off s noblank dpms force off 2>/dev/null || true
-  done
-fi
+# Do NOT run "xset dpms force off" on the GDM :0 display — that leaves
+# "Monitor is Off" with backlight still lit (black screen + cursor, no greeter).
 
 if [[ "${off}" -eq 0 ]]; then
   log "no eDP/LVDS backlight/dpms nodes found — nothing to power off"

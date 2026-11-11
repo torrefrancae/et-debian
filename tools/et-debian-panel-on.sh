@@ -48,4 +48,13 @@ for bl in /sys/class/backlight/*/brightness; do
   log "backlight restore: ${bl} -> ${val}"
 done
 
+# Wake local GDM/X if it was left in "Monitor is Off" (black + cursor).
+if [[ -S /tmp/.X11-unix/X0 ]]; then
+  for xa in /run/user/*/gdm/Xauthority /run/user/112/gdm/Xauthority; do
+    [[ -e "${xa}" ]] || continue
+    DISPLAY=:0 XAUTHORITY="${xa}" xset dpms force on 2>/dev/null || true
+    DISPLAY=:0 XAUTHORITY="${xa}" xset -dpms 2>/dev/null || true
+  done
+fi
+
 log "physical panel on (keep-off paused until et-debian-panel-off)"

@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# Keep scrin.io visible on every workspace.
-# Prefer EWMH sticky; if mutter drops it (common on xrdp), fall back to
-# moving the window onto the active desktop whenever the workspace changes.
-# Never force always-on-top.
+# Keep scrin.io visible on every workspace — sticky / follow-desktop only.
+# Never raise, activate, or set always-on-top (that steals focus while you work).
 set -euo pipefail
 
 MATCH="${ET_SCRIN_WM_CLASS:-scrin.io}"
 TRIES="${ET_SCRIN_STICKY_TRIES:-60}"
 SLEEP_SECS="${ET_SCRIN_STICKY_SLEEP:-2}"
-WATCH_SECS="${ET_SCRIN_STICKY_WATCH_SECS:-2}"
+WATCH_SECS="${ET_SCRIN_STICKY_WATCH_SECS:-5}"
 
 log() { printf '[et-debian-scrin] %s\n' "$*"; }
 
@@ -37,11 +35,16 @@ is_sticky() {
   [[ "${state}" == *_NET_WM_STATE_STICKY* ]] || [[ "${desk}" == *4294967295* ]]
 }
 
+has_above() {
+  local wid="$1" state
+  state="$(xprop -id "$wid" _NET_WM_STATE 2>/dev/null || true)"
+  [[ "${state}" == *_NET_WM_STATE_ABOVE* ]]
+}
+
 make_sticky() {
   local wid="$1"
+  # Do NOT activate/raise — that puts scrin on top of the app you're using.
   # Never mix remove+add in one wmctrl -b list (that strips sticky).
-  wmctrl -i -a "$wid" 2>/dev/null || true
-  command -v xdotool >/dev/null 2>&1 && xdotool windowactivate --sync "$wid" 2>/dev/null || true
   wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
   wmctrl -i -r "$wid" -t -1 2>/dev/null || true
@@ -53,7 +56,7 @@ make_sticky() {
 follow_desktop() {
   local wid="$1" desk="$2"
   [[ -n "${desk}" ]] || return 0
-  # Move onto the active workspace so it remains visible even when sticky fails.
+  # Move without activating.
   wmctrl -i -r "$wid" -t "${desk}" 2>/dev/null || true
   command -v xdotool >/dev/null 2>&1 && xdotool set_desktop_for_window "$wid" "${desk}" 2>/dev/null || true
   wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
@@ -81,17 +84,18 @@ while true; do
   wid="$(find_wid || true)"
   desk="$(current_desktop || true)"
   if [[ -n "${wid}" ]]; then
-    if is_sticky "${wid}"; then
+    if has_above "${wid}"; then
       wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
+      log "cleared always-on-top: ${wid}"
+    fi
+    if is_sticky "${wid}"; then
+      :
     else
-      # Prefer sticky; if mutter refuses, keep following the active desktop.
       make_sticky "${wid}"
       if ! is_sticky "${wid}"; then
         if [[ -n "${desk}" && "${desk}" != "${last_desk}" ]]; then
           follow_desktop "${wid}" "${desk}"
           log "follow desktop ${desk}: ${wid}"
-        else
-          follow_desktop "${wid}" "${desk}"
         fi
       else
         log "sticky restored: ${wid}"

@@ -14,11 +14,10 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **modifier-hud** | Ctrl/Shift/Cmd OSD | `scripts/50-tools.sh` |
 | **chrome-dev** | Quit this user’s Chrome, relaunch with DevTools | `/usr/local/bin/chrome-dev` |
 | **workin** | Open a project path in Cursor (+ optional terminal/browser) | `/usr/local/bin/workin` |
+| **Idle / display** | Panel off after **5 min** idle; on again on activity. **No** idle system sleep | `et-debian-display-idle.service` |
+| **Sleep / wake** | Suspend **06:00**, RTC wake **15:00**. Manual power-on in between → normal 5 min screen idle | `et-debian-sleep.timer` + `rtcwake` |
+| **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` |
 
-| **Sleep / wake** | Suspend **06:00**, RTC wake **15:00** (local) | `scripts/60-power.sh` → `et-debian-sleep.timer` + `rtcwake` |
-| **Idle / display** | No idle suspend; lid stays **on** by default (safe for local login) | Optional: `sudo et-debian-panel-off` + `et-debian-panel-keep-off.timer`; restore with `sudo et-debian-panel-on` |
-
-| **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` (sysfs `wakeup=enabled`, ACPI `RTC*` on, prefer `mem_sleep=deep`) |
 
 Hold overnight awake: `sudo touch /etc/et-debian-nosleep` (remove the file to resume the schedule).
 

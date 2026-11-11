@@ -1,0 +1,14 @@
+[Unit]
+Description=et-debian: turn physical panel off after 5 minutes idle
+After=display-manager.service
+# Machine sleep is only the 06:00 timer — this unit never suspends.
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/et-debian-display-idle-system
+Restart=always
+RestartSec=5
+Environment=ET_DEBIAN_SCREEN_BLANK_SECS=300
+
+[Install]
+WantedBy=multi-user.target

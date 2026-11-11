@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Keep scrin.io on every GNOME/X11 workspace ("Always on Visible Workspace").
-# Sticky only — never always-on-top. Re-asserts forever (Electron/mutter drop it).
+# Keep scrin.io visible on every workspace.
+# Prefer EWMH sticky; if mutter drops it (common on xrdp), fall back to
+# moving the window onto the active desktop whenever the workspace changes.
+# Never force always-on-top.
 set -euo pipefail
 
 MATCH="${ET_SCRIN_WM_CLASS:-scrin.io}"
 TRIES="${ET_SCRIN_STICKY_TRIES:-60}"
 SLEEP_SECS="${ET_SCRIN_STICKY_SLEEP:-2}"
-WATCH_SECS="${ET_SCRIN_STICKY_WATCH_SECS:-10}"
+WATCH_SECS="${ET_SCRIN_STICKY_WATCH_SECS:-2}"
 
 log() { printf '[et-debian-scrin] %s\n' "$*"; }
 
@@ -21,6 +23,13 @@ find_wid() {
   wmctrl -lx 2>/dev/null | awk -v m="$MATCH" 'BEGIN{IGNORECASE=1} index($3,m)||index($0,m){print $1; exit}'
 }
 
+current_desktop() {
+  if command -v xdotool >/dev/null 2>&1; then
+    xdotool get_desktop 2>/dev/null && return 0
+  fi
+  wmctrl -d 2>/dev/null | awk '/\*/{print $1; exit}'
+}
+
 is_sticky() {
   local wid="$1" state desk
   state="$(xprop -id "$wid" _NET_WM_STATE 2>/dev/null || true)"
@@ -30,7 +39,6 @@ is_sticky() {
 
 make_sticky() {
   local wid="$1"
-  # mutter often ignores sticky unless the window has been activated.
   # Never mix remove+add in one wmctrl -b list (that strips sticky).
   wmctrl -i -a "$wid" 2>/dev/null || true
   command -v xdotool >/dev/null 2>&1 && xdotool windowactivate --sync "$wid" 2>/dev/null || true
@@ -38,9 +46,16 @@ make_sticky() {
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
   wmctrl -i -r "$wid" -t -1 2>/dev/null || true
   command -v xdotool >/dev/null 2>&1 && xdotool set_desktop_for_window "$wid" -1 2>/dev/null || true
-  xprop -id "$wid" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP 0xFFFFFFFF 2>/dev/null || true
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
-  wmctrl -i -r "$wid" -t -1 2>/dev/null || true
+  wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
+}
+
+follow_desktop() {
+  local wid="$1" desk="$2"
+  [[ -n "${desk}" ]] || return 0
+  # Move onto the active workspace so it remains visible even when sticky fails.
+  wmctrl -i -r "$wid" -t "${desk}" 2>/dev/null || true
+  command -v xdotool >/dev/null 2>&1 && xdotool set_desktop_for_window "$wid" "${desk}" 2>/dev/null || true
   wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
 }
 
@@ -51,25 +66,38 @@ for ((i = 1; i <= TRIES; i++)); do
     make_sticky "${wid}"
     if is_sticky "${wid}"; then
       log "sticky on all desktops: ${wid}"
-      break
+    else
+      desk="$(current_desktop || true)"
+      follow_desktop "${wid}" "${desk}"
+      log "sticky unsupported — follow-desktop mode on ${wid} (desk=${desk:-?})"
     fi
-    log "sticky not held yet for ${wid} — retry"
+    break
   fi
   sleep "${SLEEP_SECS}"
 done
 
-# Stay alive: mutter/Electron drop sticky; re-assert without always-on-top.
+last_desk=""
 while true; do
   wid="$(find_wid || true)"
+  desk="$(current_desktop || true)"
   if [[ -n "${wid}" ]]; then
-    if ! is_sticky "${wid}"; then
-      make_sticky "${wid}"
-      if is_sticky "${wid}"; then
-        log "re-assert sticky: ${wid}"
-      fi
-    else
+    if is_sticky "${wid}"; then
       wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
+    else
+      # Prefer sticky; if mutter refuses, keep following the active desktop.
+      make_sticky "${wid}"
+      if ! is_sticky "${wid}"; then
+        if [[ -n "${desk}" && "${desk}" != "${last_desk}" ]]; then
+          follow_desktop "${wid}" "${desk}"
+          log "follow desktop ${desk}: ${wid}"
+        else
+          follow_desktop "${wid}" "${desk}"
+        fi
+      else
+        log "sticky restored: ${wid}"
+      fi
     fi
   fi
+  last_desk="${desk}"
   sleep "${WATCH_SECS}"
 done

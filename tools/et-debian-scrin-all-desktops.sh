@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Keep scrin.io visible on every GNOME/X11 workspace ("Always on Visible Workspace").
-# Waits for the window, then sets sticky + desktop 0xFFFFFFFF. No Docker.
+# Keep scrin.io on every GNOME/X11 workspace ("Always on Visible Workspace").
+# Sticky only — never always-on-top. Re-asserts forever (Electron can drop sticky).
 set -euo pipefail
 
 MATCH="${ET_SCRIN_WM_CLASS:-scrin.io}"
 TRIES="${ET_SCRIN_STICKY_TRIES:-60}"
 SLEEP_SECS="${ET_SCRIN_STICKY_SLEEP:-2}"
+WATCH_SECS="${ET_SCRIN_STICKY_WATCH_SECS:-30}"
 
 log() { printf '[et-debian-scrin] %s\n' "$*"; }
 
@@ -20,10 +21,16 @@ find_wid() {
   wmctrl -lx 2>/dev/null | awk -v m="$MATCH" 'BEGIN{IGNORECASE=1} index($3,m)||index($0,m){print $1; exit}'
 }
 
+is_sticky() {
+  local wid="$1" desk state
+  desk="$(wmctrl -l 2>/dev/null | awk -v id="$wid" '$1==id{print $2; exit}')"
+  state="$(xprop -id "$wid" _NET_WM_STATE 2>/dev/null || true)"
+  [[ "${desk}" == "-1" ]] || [[ "${state}" == *_NET_WM_STATE_STICKY* ]]
+}
+
 make_sticky() {
   local wid="$1"
-  # Sticky = all workspaces. Never keep "above" (always-on-top) — scrin.io must stay
-  # reachable on every desktop without covering other apps.
+  # Sticky = all workspaces. Never keep "above" (always-on-top).
   wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
   xprop -id "$wid" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP 0xFFFFFFFF 2>/dev/null || true
@@ -43,16 +50,20 @@ for ((i = 1; i <= TRIES; i++)); do
 done
 
 if [[ -z "${wid}" ]]; then
-  log "scrin.io window not found after ${TRIES} tries — exit"
-  exit 0
+  log "scrin.io window not found after ${TRIES} tries — keep watching"
 fi
 
-# Re-assert a few times (Electron can recreate/reparent the window after login UI)
-for _ in 1 2 3 4 5; do
-  sleep 5
+# Stay alive: Electron/GNOME often drops sticky after workspace changes or relaunch.
+while true; do
   wid="$(find_wid || true)"
-  [[ -n "${wid}" ]] || continue
-  make_sticky "${wid}"
+  if [[ -n "${wid}" ]]; then
+    if ! is_sticky "${wid}"; then
+      make_sticky "${wid}"
+      log "re-assert sticky: ${wid}"
+    else
+      # Still strip always-on-top if the app re-adds it.
+      wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
+    fi
+  fi
+  sleep "${WATCH_SECS}"
 done
-
-exit 0

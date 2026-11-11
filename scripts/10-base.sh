@@ -9,7 +9,7 @@ log "base packages"
 apt_update
 apt_install \
   ca-certificates curl wget git gnupg rsync openssh-server openssh-client \
-  avahi-daemon libnss-mdns \
+  avahi-daemon libnss-mdns systemd-timesyncd \
   build-essential pkg-config \
   python3 python3-gi python3-gi-cairo python3-xlib gir1.2-gtk-3.0 \
   xdotool wmctrl \
@@ -19,6 +19,9 @@ apt_install \
 TZ="${ET_TIMEZONE:-Asia/Manila}"
 log "timezone -> ${TZ}"
 as_root timedatectl set-timezone "${TZ}" || true
+# Keep wall clock correct so 06:00 sleep is real morning (not 8h skewed).
+as_root systemctl enable --now systemd-timesyncd || true
+as_root timedatectl set-ntp true 2>/dev/null || true
 
 log "enable ssh + avahi"
 as_root systemctl enable --now ssh || as_root systemctl enable --now sshd || true

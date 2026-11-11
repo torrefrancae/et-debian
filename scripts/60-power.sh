@@ -69,7 +69,8 @@ as_root rm -f \
   /var/lib/et-debian/panel-keep-on \
   2>/dev/null || true
 
-as_root timedatectl set-ntp true || true
+as_root systemctl enable --now systemd-timesyncd || true
+as_root timedatectl set-ntp true 2>/dev/null || true
 
 as_root /usr/local/sbin/et-debian-disable-idle-sleep
 as_root /usr/local/sbin/et-debian-enable-rtc-wake

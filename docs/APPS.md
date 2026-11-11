@@ -13,6 +13,7 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **TigerVNC viewer** | VNC client | apt |
 | **modifier-hud** | Ctrl/Shift/Cmd OSD | `scripts/50-tools.sh` |
 | **chrome-dev** | Quit this user’s Chrome, relaunch with DevTools | `/usr/local/bin/chrome-dev` |
+| **mouse-circle** | Pointer anti-idle circle on the active X session | `/usr/local/bin/mouse-circle` |
 | **workin** | Open a project path in Cursor (+ optional terminal/browser) | `/usr/local/bin/workin` |
 | **Idle / display** | Panel off after **5 min** idle; on again on activity. **No** idle system sleep | `et-debian-display-idle.service` |
 | **Sleep / wake** | Suspend **only** at **06:00**, RTC wake **15:00**. Sleep key / idle / lid cannot suspend | `et-debian-block-sleep` + `et-debian-sleep.timer` |

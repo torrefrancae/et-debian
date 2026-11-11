@@ -46,6 +46,16 @@ log "arm RTC wake for ${wake_human} (epoch ${wake_epoch}), then suspend mode=${M
 echo 0 >/sys/class/rtc/rtc0/wakealarm 2>/dev/null || true
 sync
 
+# Release the always-on sleep inhibitor so rtcwake can suspend.
+if systemctl is-active --quiet et-debian-block-sleep.service 2>/dev/null; then
+  log "releasing et-debian-block-sleep for scheduled suspend"
+  systemctl stop et-debian-block-sleep.service || true
+fi
+restore_block() {
+  systemctl start et-debian-block-sleep.service 2>/dev/null || true
+}
+trap restore_block EXIT
+
 if [[ "${ET_DEBIAN_SLEEP_DRY:-0}" == "1" ]]; then
   log "DRY RUN — would: rtcwake -m ${MODE} -t ${wake_epoch}"
   rtcwake -m show || true
@@ -54,4 +64,6 @@ if [[ "${ET_DEBIAN_SLEEP_DRY:-0}" == "1" ]]; then
   exit 0
 fi
 
-exec rtcwake -m "${MODE}" -t "${wake_epoch}"
+rtcwake -m "${MODE}" -t "${wake_epoch}"
+# After wake: trap restores the block-sleep inhibitor.
+log "woke from scheduled suspend — re-blocking unschedled sleep"

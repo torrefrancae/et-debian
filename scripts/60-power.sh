@@ -35,6 +35,9 @@ as_root install -m 0755 \
 as_root install -m 0755 \
   "${REPO_ROOT}/tools/et-debian-display-idle-off.sh" \
   /usr/local/bin/et-debian-display-idle-off
+as_root install -m 0755 \
+  "${REPO_ROOT}/tools/et-debian-block-sleep.sh" \
+  /usr/local/sbin/et-debian-block-sleep
 
 as_root install -m 0644 \
   "${REPO_ROOT}/conf/systemd/et-debian-sleep.service" \
@@ -51,6 +54,9 @@ as_root install -m 0644 \
 as_root install -m 0644 \
   "${REPO_ROOT}/conf/systemd/et-debian-display-idle.service" \
   /etc/systemd/system/et-debian-display-idle.service
+as_root install -m 0644 \
+  "${REPO_ROOT}/conf/systemd/et-debian-block-sleep.service" \
+  /etc/systemd/system/et-debian-block-sleep.service
 
 # Legacy aggressive keep-off (boot + every 30s) — remove if present
 as_root systemctl disable --now et-debian-panel-keep-off.timer 2>/dev/null || true
@@ -79,12 +85,13 @@ fi
 
 as_root systemctl daemon-reload
 as_root systemctl enable --now et-debian-no-idle-sleep.service || true
+as_root systemctl enable --now et-debian-block-sleep.service || true
 as_root systemctl enable --now et-debian-display-idle.service || true
 as_root systemctl enable --now et-debian-sleep.timer
 as_root systemctl enable --now et-debian-rtc-wake.service || true
 
 log "timer status:"
 as_root systemctl list-timers et-debian-sleep.timer --no-pager || true
-as_root systemctl is-active et-debian-display-idle.service || true
-log "policy: panel off after 5m idle; system sleep only at 06:00 (wake 15:00)"
+as_root systemctl is-active et-debian-display-idle.service et-debian-block-sleep.service || true
+log "policy: panel off after 5m idle; system sleep ONLY at 06:00 (wake 15:00)"
 log "power schedule done"

@@ -15,7 +15,7 @@ Installed by `scripts/40-apps.sh` + `scripts/30-desktop.sh` on bootstrap.
 | **chrome-dev** | Quit this user’s Chrome, relaunch with DevTools | `/usr/local/bin/chrome-dev` |
 | **workin** | Open a project path in Cursor (+ optional terminal/browser) | `/usr/local/bin/workin` |
 | **Idle / display** | Panel off after **5 min** idle; on again on activity. **No** idle system sleep | `et-debian-display-idle.service` |
-| **Sleep / wake** | Suspend **06:00**, RTC wake **15:00**. Manual power-on in between → normal 5 min screen idle | `et-debian-sleep.timer` + `rtcwake` |
+| **Sleep / wake** | Suspend **only** at **06:00**, RTC wake **15:00**. Sleep key / idle / lid cannot suspend | `et-debian-block-sleep` + `et-debian-sleep.timer` |
 | **RTC wake enable** | Kernel/ACPI alarm wake from Debian | `et-debian-enable-rtc-wake` |
 
 

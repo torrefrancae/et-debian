@@ -1,0 +1,13 @@
+[Unit]
+Description=et-debian: block unschedled suspend/hibernate
+After=multi-user.target
+# Stopped briefly by et-debian-sleep.service before rtcwake
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/et-debian-block-sleep
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

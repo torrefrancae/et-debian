@@ -13,7 +13,7 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-# 1) systemd-logind: never idle-sleep or lid-sleep
+# 1) systemd-logind: never idle/lid/key suspend — only rtcwake schedule may sleep
 install -d /etc/systemd/logind.conf.d
 cat >/etc/systemd/logind.conf.d/et-debian-no-idle-sleep.conf <<'EOF'
 [Login]
@@ -21,11 +21,16 @@ IdleAction=ignore
 HandleLidSwitch=ignore
 HandleLidSwitchExternalPower=ignore
 HandleLidSwitchDocked=ignore
-HandleSuspendKey=suspend
+HandleSuspendKey=ignore
 HandleHibernateKey=ignore
+HandleSuspendKeyLongPress=ignore
+AllowSuspend=no
+AllowHibernation=no
+AllowHybridSleep=no
+AllowSuspendThenHibernate=no
 EOF
 systemctl restart systemd-logind || true
-log "logind: IdleAction=ignore"
+log "logind: no idle/lid/key suspend (AllowSuspend=no)"
 
 # 2) GNOME: disable fake screensaver blank (black + cursor). Panel-off helper handles display.
 install -d /etc/dconf/db/local.d /etc/dconf/profile

@@ -31,14 +31,16 @@ is_sticky() {
 make_sticky() {
   local wid="$1"
   # Sticky = all workspaces. Never keep "above" (always-on-top).
-  # Order: sticky flag, then desktop -1 (mutter is picky about sequence).
+  # IMPORTANT: wmctrl -b cannot mix remove+add in one list — "remove,above,add,sticky"
+  # is parsed as remove(above,add,sticky) and strips sticky.
   wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
   wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
   wmctrl -i -r "$wid" -t -1 2>/dev/null || true
   command -v xdotool >/dev/null 2>&1 && xdotool set_desktop_for_window "$wid" -1 2>/dev/null || true
   xprop -id "$wid" -f _NET_WM_DESKTOP 32c -set _NET_WM_DESKTOP 0xFFFFFFFF 2>/dev/null || true
-  wmctrl -i -r "$wid" -b remove,above,add,sticky 2>/dev/null || true
+  wmctrl -i -r "$wid" -b add,sticky 2>/dev/null || true
   wmctrl -i -r "$wid" -t -1 2>/dev/null || true
+  wmctrl -i -r "$wid" -b remove,above 2>/dev/null || true
 }
 
 wid=""

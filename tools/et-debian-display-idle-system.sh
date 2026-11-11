@@ -142,6 +142,25 @@ assert_blank() {
   fi
 }
 
+# If the lid is already dark (or lit-but-stuck), start in blanked mode so we
+# re-assert OFF immediately instead of waiting another 5 minutes.
+if ! panel_is_lit; then
+  blanked=1
+  # Pretend last input was long ago so the idle path stays in blanked state.
+  printf '%s\n' "$(( $(date +%s) - BLANK_SECS - 5 ))" >"${ACT_FILE}.tmp"
+  mv -f "${ACT_FILE}.tmp" "${ACT_FILE}"
+  last_seen="$(tr -d '[:space:]' <"${ACT_FILE}")"
+  log "starting blanked (panel already dark)"
+else
+  # Lit black+cursor is useless — blank now; user can press a key to wake UI.
+  assert_blank
+  blanked=1
+  printf '%s\n' "$(( $(date +%s) - BLANK_SECS - 5 ))" >"${ACT_FILE}.tmp"
+  mv -f "${ACT_FILE}.tmp" "${ACT_FILE}"
+  last_seen="$(tr -d '[:space:]' <"${ACT_FILE}")"
+  log "starting blanked (cleared lit black/stuck state)"
+fi
+
 log "idle panel manager start (blank=${BLANK_SECS}s; KEY/REL only; re-assert while blank)"
 
 while true; do
